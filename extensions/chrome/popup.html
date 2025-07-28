@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>MediaTool</h1>
+      <div class="status" id="service-status">🔴 Disconnected</div>
+    </header>
+    
+    <div class="tabs">
+      <button class="tab active" data-tab="download">Download</button>
+      <button class="tab" data-tab="convert">Convert</button>
+      <button class="tab" data-tab="tasks">Tasks</button>
+    </div>
+
+    <div id="download-panel" class="panel active">
+      <div class="input-group">
+        <input type="url" id="url-input" placeholder="Enter media URL">
+        <select id="quality-select">
+          <option value="best">Best Quality</option>
+          <option value="720p">720p</option>
+          <option value="480p">480p</option>
+        </select>
+      </div>
+      <button id="download-btn" class="btn primary">Download</button>
+      
+      <div id="detected-media">
+        <h3>Detected Media</h3>
+        <div id="media-list"></div>
+      </div>
+    </div>
+
+    <div id="convert-panel" class="panel">
+      <div id="file-list"></div>
+      <div class="convert-options">
+        <select id="format-select">
+          <option value="mp3">MP3</option>
+          <option value="mp4">MP4</option>
+          <option value="wav">WAV</option>
+          <option value="flac">FLAC</option>
+        </select>
+        <button id="convert-btn" class="btn primary">Convert</button>
+      </div>
+    </div>
+
+    <div id="tasks-panel" class="panel">
+      <div id="task-list"></div>
+      <button id="refresh-tasks" class="btn secondary">Refresh</button>
+    </div>
+  </div>
+  
+  <script src="socket.io.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

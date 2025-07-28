@@ -1,0 +1,14 @@
+console-menu
+pytube
+yt-dlp
+requests
+tqdm
+ffmpeg-python
+beautifulsoup4
+
+flask 
+flask-socketio 
+flask-cors 
+pyinstaller
+
+pywin32
