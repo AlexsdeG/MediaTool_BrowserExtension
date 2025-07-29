@@ -35,16 +35,18 @@
     </div>
 
     <div id="convert-panel" class="panel">
-      <div id="file-list"></div>
-      <div class="convert-options">
-        <select id="format-select">
-          <option value="mp3">MP3</option>
-          <option value="mp4">MP4</option>
-          <option value="wav">WAV</option>
-          <option value="flac">FLAC</option>
-        </select>
-        <button id="convert-btn" class="btn primary">Convert</button>
+      <div class="convert-controls">
+        <div class="file-type-select">
+          <button id="video-btn" class="file-type-btn active">Video</button>
+          <button id="audio-btn" class="file-type-btn">Audio</button>
+        </div>
+        <button id="open-folder-btn" class="icon-btn" title="Open MediaTool Folder">📁</button>
       </div>
+      <div class="convert-options">
+        <select id="format-select"></select>
+        <button id="convert-btn" class="btn primary" disabled>Convert</button>
+      </div>
+      <div id="file-tree"></div>
     </div>
 
     <div id="tasks-panel" class="panel">

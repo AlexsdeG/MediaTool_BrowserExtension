@@ -2,9 +2,12 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import threading
+import os
 import queue
 import json
 import uuid
+import subprocess
+import sys
 
 # Import your existing modules
 from core import downloader
@@ -125,27 +128,71 @@ def get_task(task_id):
         return jsonify({"error": "Task not found"}), 404
     return jsonify(task)
 
+def build_file_tree(base_path, file_type=None):
+    """
+    Recursively builds a file tree for the given base_path.
+    Only includes files matching file_type ('audio' or 'video') if specified.
+    """
+    audio_exts = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma'}
+    video_exts = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v'}
+    tree = []
+    if not base_path.exists():
+        return tree
+    for entry in sorted(base_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+        if entry.is_dir():
+            children = build_file_tree(entry, file_type)
+            if children:  # Only include folders with matching files
+                tree.append({
+                    'type': 'folder',
+                    'name': entry.name,
+                    'children': children
+                })
+        elif entry.is_file():
+            ext = entry.suffix.lower()
+            if file_type == 'audio' and ext not in audio_exts:
+                continue
+            if file_type == 'video' and ext not in video_exts:
+                continue
+            tree.append({
+                'type': 'file',
+                'name': entry.name,
+                'path': str(entry),
+                'size': entry.stat().st_size
+            })
+    return tree
+
 @app.route('/api/files', methods=['GET'])
 def list_files():
-    """List downloaded and converted files"""
+    """List downloaded and converted files as a directory tree, filtered by type if requested."""
+    file_type = request.args.get('type', None)
+    print("Requested file type:", file_type)
+    if file_type not in (None, 'audio', 'video'):
+        return jsonify({"error": "Invalid type parameter"}), 400
     try:
-        download_files = list(utils.DOWNLOAD_DIR_BASE.glob('**/*'))
-        convert_files = list(utils.CONVERT_DIR_BASE.glob('**/*'))
-        
-        files = []
-        for file_path in download_files + convert_files:
-            if file_path.is_file():
-                files.append({
-                    'name': file_path.name,
-                    'path': str(file_path),
-                    'size': file_path.stat().st_size,
-                    'type': 'download' if utils.DOWNLOAD_DIR_BASE in file_path.parents else 'convert'
-                })
-        
-        return jsonify(files)
+        downloads_tree = build_file_tree(utils.DOWNLOAD_DIR_BASE, file_type)
+        converted_tree = build_file_tree(utils.CONVERT_DIR_BASE, file_type)
+        return jsonify({
+            'downloads': downloads_tree,
+            'converted': converted_tree
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/open_folder', methods=['POST'])
+def open_folder():
+    """Open the MediaTool base folder in the system file explorer."""
+    try:
+        base_path = str(utils.DOWNLOAD_DIR_BASE.parent)
+        if sys.platform.startswith('win'):
+            os.startfile(base_path)
+        elif sys.platform.startswith('darwin'):
+            subprocess.Popen(['open', base_path])
+        else:
+            subprocess.Popen(['xdg-open', base_path])
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 # WebSocket for real-time updates
 @socketio.on('connect')
 def handle_connect():
@@ -212,7 +259,7 @@ def process_convert(task_id, params):
         def progress_callback(progress):
             task_manager.update_task(task_id, progress=progress)
         # input, output, format, filetype
-        converter.convert_media(params['file_path'], params['output_path'], params['format'], params['file_type'], progress_callback=progress_callback)
+        converter.handle_conversion(params['file_path'], params['format'], params['file_type'], progress_callback=progress_callback)
 
         task_manager.update_task(task_id,
             status='completed',
@@ -227,7 +274,7 @@ def process_convert(task_id, params):
 
 if __name__ == '__main__':
     # Setup directories # TODO: has to be run daily at midnight
-    utils.setup_directories()
+    utils.initialize_directories()
     
     # Start background worker
     worker_thread = threading.Thread(target=worker, daemon=True)

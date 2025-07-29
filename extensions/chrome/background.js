@@ -120,7 +120,13 @@ class ServiceManager {
           return true;
           
         case 'getFiles':
-          this.getFiles()
+          this.getFiles(message.fileType)
+            .then(sendResponse)
+            .catch(error => sendResponse({ error: error.message }));
+          return true;
+          
+        case 'openMediaFolder':
+          this.openMediaFolder()
             .then(sendResponse)
             .catch(error => sendResponse({ error: error.message }));
           return true;
@@ -205,28 +211,43 @@ class ServiceManager {
     }
   }
   
-  async getFiles() {
+  async getFiles(fileType) {
     if (!this.isServiceRunning) {
       throw new Error('Service is not running');
     }
-    
     try {
-      const response = await fetch(`${this.serviceUrl}/api/files`, {
+      let url = `${this.serviceUrl}/api/files`;
+      if (fileType) {
+        url += `?type=${encodeURIComponent(fileType)}`;
+      }
+      const response = await fetch(url, {
         method: 'GET',
         headers: this.getAuthHeaders()
       });
-      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      
       return await response.json();
     } catch (error) {
       console.error('Get files failed:', error);
       throw error;
     }
   }
+
+  async openMediaFolder() {
+    if (!this.isServiceRunning) throw new Error('Service is not running');
+    const response = await fetch(`${this.serviceUrl}/api/open_folder`, {
+      method: 'POST',
+      headers: this.getAuthHeaders()
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
 }
+
 
 // Initialize service manager
 const serviceManager = new ServiceManager();

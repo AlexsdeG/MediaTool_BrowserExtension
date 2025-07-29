@@ -56,9 +56,9 @@ def convert_media(input_path: Path, output_path: Path, format: str, file_type: s
     print(f"Output will be saved to: {output_path}")
     print("⏳ Starting conversion process...")
     
-    # Progress: 20% - Starting
+    # Progress: 5% - Starting
     if progress_callback:
-        progress_callback(20)
+        progress_callback(5)
         
     try:
         # Get input file info for progress estimation
@@ -245,6 +245,29 @@ def select_target_format(file_type: str, source_format: str):
                 return selected_format, file_type  # Return format and same type
         else:
             print("Invalid format selection.")
+
+def handle_conversion(file_path: str, target_format: str, output_type: str, progress_callback=None):
+    """Handles the conversion process started from the extension."""
+    selected_file = Path(file_path)
+    _, daily_convert_path = utils.get_daily_paths()
+
+    output_filename = f"{selected_file.stem}.{target_format}"
+    safe_output_filename = utils.sanitize_filename(output_filename)
+    output_path = daily_convert_path / safe_output_filename
+
+    # This is a simplified placeholder for task management
+    # In a real application, you would use a proper task queue like Celery
+    task_id = f"conv_{utils.sanitize_filename(selected_file.name)}_{target_format}"
+
+    # Run conversion in a separate thread to avoid blocking the server
+    import threading
+    thread = threading.Thread(
+        target=convert_media, 
+        args=(selected_file, output_path, target_format, output_type, progress_callback)
+    )
+    thread.start()
+
+    return task_id
 
 def run_conversion_menu():
     """Shows an enhanced menu to select media type, file, and format for conversion."""
