@@ -249,7 +249,7 @@ input[type="url"]:focus, select:focus {
 
 /* Tasks Panel */
 #task-list {
-  margin-bottom: 16px;
+  margin-top: 16px;
   max-height: 300px;
   overflow-y: auto;
 }

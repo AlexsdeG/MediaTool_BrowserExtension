@@ -39,7 +39,7 @@ class ServiceManager {
       });
       
       this.isServiceRunning = response.ok;
-      
+      console.log('Service health check:', this.isServiceRunning ? 'Running' : 'Not running', "token: ", this.token);
       if (!this.isServiceRunning && !this.token) {
         // Try to get a new token if service is running but we don't have auth
         await this.requestToken();
@@ -55,7 +55,7 @@ class ServiceManager {
   
   async requestToken() {
     try {
-      console.log('Requesting new auth token...');
+      console.log('Requesting new auth token...', this.serviceUrl);
       const response = await fetch(`${this.serviceUrl}/api/auth/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,7 +69,7 @@ class ServiceManager {
         const data = await response.json();
         this.token = data.token;
         await chrome.storage.local.set({ authToken: this.token });
-        console.log('Auth token received and stored');
+        console.log('Auth token received and stored', this.token);
         return this.token;
       } else {
         console.error('Failed to get auth token:', response.status);
@@ -86,6 +86,7 @@ class ServiceManager {
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
+    console.log('Auth headers:', headers, this.token);
     return headers;
   }
   

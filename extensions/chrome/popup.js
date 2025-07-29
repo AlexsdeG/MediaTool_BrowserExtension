@@ -1,38 +1,15 @@
 class MediaToolClient {
   constructor() {
     this.serviceUrl = 'http://127.0.0.1:8765';
-    this.token = null;
     this.socket = null;
     this.init();
   }
 
   async init() {
-    await this.getAuthToken();
     await this.checkServiceStatus();
     this.setupWebSocket();
     this.setupEventListeners();
     this.loadTasks();
-  }
-
-  async getAuthToken() {
-    // Try to get from storage first
-    // this.token = await new Promise(resolve => {
-    //   chrome.storage.local.get(['authToken'], result => resolve(result.authToken));
-    // });
-    if (!this.token) {
-      // Request from backend
-      const response = await fetch(`${this.serviceUrl}/api/auth/token`, { method: 'POST' });
-      const data = await response.json();
-      this.token = data.token;
-      console.log('Auth token received:', this.token);
-      chrome.storage.local.set({ authToken: this.token });
-    }
-  }
-
-  async fetchWithAuth(url, options = {}) {
-    options.headers = options.headers || {};
-    options.headers['Authorization'] = 'Bearer ' + this.token;
-    return fetch(url, options);
   }
 
   async checkServiceStatus() {
@@ -106,7 +83,7 @@ class MediaToolClient {
     this.detectPageMedia();
   }
 
-  switchTab(tabName) {
+  async switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     
@@ -114,53 +91,85 @@ class MediaToolClient {
     document.getElementById(`${tabName}-panel`).classList.add('active');
 
     if (tabName === 'convert') {
-      this.loadFiles();
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { action: 'getFiles' },
+          response => {
+            if (response && !response.error) resolve(response);
+            else reject(response ? response.error : 'Unknown error');
+          }
+        );
+      });
     } else if (tabName === 'tasks') {
-      this.loadTasks();
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { action: 'getTasks' },
+          response => {
+            if (response && !response.error) resolve(response);
+            else reject(response ? response.error : 'Unknown error');
+          }
+        );
+      });
     }
   }
 
   async downloadMedia() {
     const url = document.getElementById('url-input').value;
     const quality = document.getElementById('quality-select').value;
-
+    
     if (!url) {
       alert('Please enter a URL');
       return;
     }
 
     try {
-      const response = await this.fetchWithAuth(`${this.serviceUrl}/api/download`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ url, quality })
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { action: 'downloadMedia', data: { url, quality } },
+          response => {
+            if (response && !response.error) resolve(response);
+            else reject(response ? response.error : 'Unknown error');
+          }
+        );
       });
-
-      const result = await response.json();
-      
-      if (response.ok) {
-        this.showNotification(`Download started: ${result.task_id}`);
-        this.switchTab('tasks');
-      } else {
-        this.showNotification(`Error: ${result.error}`, 'error');
-      }
+      this.showNotification('Download started: ' + result.task_id);
+      this.loadTasks();
+      this.switchTab('tasks');
     } catch (error) {
-      this.showNotification('Service unavailable', 'error');
+      this.showNotification('Download failed: ' + error, 'error');
+    }
+  }
+
+  async convertMedia() {
+    const filePath = ""; // TODO: get from UI
+    const format = "";   // TODO: get from UI
+    try {
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { action: 'convertMedia', data: { file_path: filePath, format } },
+          response => {
+            if (response && !response.error) resolve(response);
+            else reject(response ? response.error : 'Unknown error');
+          }
+        );
+      });
+      this.showNotification('Conversion started: ' + result.task_id);
+      this.loadTasks();
+      this.switchTab('tasks');
+    } catch (error) {
+      this.showNotification('Conversion failed: ' + error, 'error');
     }
   }
 
   async detectPageMedia() {
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
     // Send message to content script
     try {
       const response = await chrome.tabs.sendMessage(tab.id, { action: 'detectMedia' });
       this.displayDetectedMedia(response);
     } catch (error) {
-      console.log('Could not detect media on page');
+      this.showNotification('Could not detect media on page', 'error');
     }
   }
 
@@ -190,15 +199,16 @@ class MediaToolClient {
 
   async loadTasks() {
     try {
-      const response = await this.fetchWithAuth(`${this.serviceUrl}/api/tasks`);
-      if (!response.ok) {
-        this.showNotification('Failed to load tasks', 'error');
-        return;
-      }
-      const tasks = await response.json();
+      const tasks = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ action: 'getTasks' }, response => {
+          if (response && !response.error) resolve(response);
+          else reject(response ? response.error : 'Unknown error');
+        });
+      });
+      console.log('TEST ! Loaded tasks:', tasks);
       this.displayTasks(tasks);
     } catch (error) {
-      console.error('Failed to load tasks:', error);
+      this.showNotification('Failed to load tasks', 'error');
     }
   }
 
@@ -210,7 +220,8 @@ class MediaToolClient {
       return;
     }
 
-    tasks.forEach(task => {
+    // Show newest tasks first
+    tasks.slice().reverse().forEach(task => {
       const item = document.createElement('div');
       item.className = `task-item ${task.status}`;
       item.innerHTML = `

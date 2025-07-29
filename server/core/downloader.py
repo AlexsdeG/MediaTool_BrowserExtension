@@ -435,7 +435,7 @@ def handle_download(url: str, download_path: Path, progress_callback=None):
 
     # Progress: 20% - Starting
     if progress_callback:
-        progress_callback(0)
+        progress_callback(5)
 
     # Only one URL is handled per call
     if 'youtube.com' in url or 'youtu.be' in url:

@@ -1,11 +1,9 @@
-# service.py
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import threading
 import queue
 import json
-from pathlib import Path
 import uuid
 
 # Import your existing modules
@@ -32,12 +30,11 @@ auth = ServiceAuth()
 
 @app.before_request
 def verify_auth():
-    if request.endpoint == 'health_check':
-        return
     if request.endpoint == 'get_token':
         return
 
     auth_header = request.headers.get('Authorization')
+    print("Auth header:", auth_header)
     if not auth_header or not auth_header.startswith("Bearer "):
         return jsonify({"error": "Unauthorized"}), 401
     if not auth.verify_token(auth_header):
