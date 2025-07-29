@@ -17,6 +17,10 @@ from security.auth import ServiceAuth
 
 app = Flask(__name__)
 CORS(app, origins=["chrome-extension://*"])
+# CORS(app, origins=[
+#     "chrome-extension://<your-extension-id>",
+#     "http://localhost:8765"
+# ], supports_credentials=True)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Task management
@@ -28,12 +32,16 @@ auth = ServiceAuth()
 
 @app.before_request
 def verify_auth():
-    # Allow health check without auth
     if request.endpoint == 'health_check':
         return
+    if request.endpoint == 'get_token':
+        return
+
     auth_header = request.headers.get('Authorization')
-    # if not auth.verify_token(auth_header):
-    #     return jsonify({"error": "Unauthorized"}), 401
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Unauthorized"}), 401
+    if not auth.verify_token(auth_header):
+        return jsonify({"error": "Unauthorized"}), 401
 
 
 class TaskManager:
@@ -66,6 +74,11 @@ task_manager = TaskManager()
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "running", "version": "1.0.0"})
+
+@app.route('/api/auth/token', methods=['POST'])
+def get_token():
+    # TODO: You can add more checks here (e.g., extension id, secret, etc.)
+    return jsonify({"token": auth.token})
 
 @app.route('/api/download', methods=['POST'])
 def download_media():

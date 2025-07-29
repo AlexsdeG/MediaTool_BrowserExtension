@@ -1,2 +1,7 @@
 # Server
-server/venv/*
+server/venv/
+server/core/__pycache__/
+server/security/__pycache__/
+
+__pycache__/
+*.pyc

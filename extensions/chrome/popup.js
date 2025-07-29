@@ -1,15 +1,38 @@
 class MediaToolClient {
   constructor() {
     this.serviceUrl = 'http://127.0.0.1:8765';
+    this.token = null;
     this.socket = null;
     this.init();
   }
 
   async init() {
+    await this.getAuthToken();
     await this.checkServiceStatus();
     this.setupWebSocket();
     this.setupEventListeners();
     this.loadTasks();
+  }
+
+  async getAuthToken() {
+    // Try to get from storage first
+    // this.token = await new Promise(resolve => {
+    //   chrome.storage.local.get(['authToken'], result => resolve(result.authToken));
+    // });
+    if (!this.token) {
+      // Request from backend
+      const response = await fetch(`${this.serviceUrl}/api/auth/token`, { method: 'POST' });
+      const data = await response.json();
+      this.token = data.token;
+      console.log('Auth token received:', this.token);
+      chrome.storage.local.set({ authToken: this.token });
+    }
+  }
+
+  async fetchWithAuth(url, options = {}) {
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = 'Bearer ' + this.token;
+    return fetch(url, options);
   }
 
   async checkServiceStatus() {
@@ -107,7 +130,7 @@ class MediaToolClient {
     }
 
     try {
-      const response = await fetch(`${this.serviceUrl}/api/download`, {
+      const response = await this.fetchWithAuth(`${this.serviceUrl}/api/download`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -167,7 +190,11 @@ class MediaToolClient {
 
   async loadTasks() {
     try {
-      const response = await fetch(`${this.serviceUrl}/api/tasks`);
+      const response = await this.fetchWithAuth(`${this.serviceUrl}/api/tasks`);
+      if (!response.ok) {
+        this.showNotification('Failed to load tasks', 'error');
+        return;
+      }
       const tasks = await response.json();
       this.displayTasks(tasks);
     } catch (error) {
@@ -178,6 +205,10 @@ class MediaToolClient {
   displayTasks(tasks) {
     const taskList = document.getElementById('task-list');
     taskList.innerHTML = '';
+    if (!Array.isArray(tasks)) {
+      this.showNotification('Failed to load tasks', 'error');
+      return;
+    }
 
     tasks.forEach(task => {
       const item = document.createElement('div');
