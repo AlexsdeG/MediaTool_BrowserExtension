@@ -104,14 +104,16 @@ def download_media():
 def convert_media():
     data = request.json
     file_path = data.get('file_path')
-    target_format = data.get('format')
+    target_format = data.get('target_format')
+    file_type = data.get('type')
     
     if not file_path or not target_format:
         return jsonify({"error": "file_path and format required"}), 400
     
     task_id = task_manager.create_task('convert', {
         'file_path': file_path,
-        'format': target_format
+        'format': target_format,
+        'type': file_type
     })
     
     task_queue.put(task_id)
