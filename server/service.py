@@ -37,7 +37,6 @@ def verify_auth():
         return
 
     auth_header = request.headers.get('Authorization')
-    print("Auth header:", auth_header)
     if not auth_header or not auth_header.startswith("Bearer "):
         return jsonify({"error": "Unauthorized"}), 401
     if not auth.verify_token(auth_header):
