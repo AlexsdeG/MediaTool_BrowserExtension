@@ -82,9 +82,9 @@ class MediaToolClient {
       this.showNotification('Please select a file to convert.', 'error');
       return;
     }
-    const format = document.getElementById('format-select').value;
-    const outputType = this.currentFileType;
-    this.sendMessageToBackend('convertMedia', { file_path: this.selectedFile.path, target_format: format, type: outputType }, 'Conversion started', 'Conversion failed');
+    const target_format = document.getElementById('format-select').value;
+    const file_type = this.currentFileType;
+    this.sendMessageToBackend('convertMedia', { file_path: this.selectedFile.path, target_format, file_type }, 'Conversion started', 'Conversion failed');
   }
 
   async sendMessageToBackend(action, data, successMsg, errorMsg) {

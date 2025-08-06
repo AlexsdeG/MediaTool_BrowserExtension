@@ -104,15 +104,15 @@ def convert_media():
     data = request.json
     file_path = data.get('file_path')
     target_format = data.get('target_format')
-    file_type = data.get('type')
+    file_type = data.get('file_type')
     
     if not file_path or not target_format:
         return jsonify({"error": "file_path and format required"}), 400
     
     task_id = task_manager.create_task('convert', {
         'file_path': file_path,
-        'format': target_format,
-        'type': file_type
+        'target_format': target_format,
+        'file_type': file_type
     })
     
     task_queue.put(task_id)
@@ -260,7 +260,7 @@ def process_convert(task_id, params):
         def progress_callback(progress):
             task_manager.update_task(task_id, progress=progress)
         # input, output, format, filetype
-        converter.handle_conversion(params['file_path'], params['format'], params['file_type'], progress_callback=progress_callback)
+        converter.handle_conversion(params['file_path'], params['target_format'], params['file_type'], progress_callback=progress_callback)
 
         task_manager.update_task(task_id,
             status='completed',
