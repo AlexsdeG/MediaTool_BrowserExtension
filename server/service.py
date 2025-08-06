@@ -181,15 +181,36 @@ def list_files():
 
 @app.route('/api/open_folder', methods=['POST'])
 def open_folder():
-    """Open the MediaTool base folder in the system file explorer."""
+    """Open the MediaTool base folder in the system file explorer and bring it to the foreground."""
     try:
         base_path = str(utils.DOWNLOAD_DIR_BASE.parent)
         if sys.platform.startswith('win'):
-            os.startfile(base_path)
+            # Use PowerShell to open and bring to front
+            script = f'''
+            $folder = "{base_path}"
+            $explorer = Start-Process explorer.exe -ArgumentList $folder -PassThru
+            $sig = '[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr hWnd);'
+            $type = Add-Type -MemberDefinition $sig -Name NativeMethods -Namespace Win32Functions -PassThru
+            $hwnd = $null
+            $retries = 0
+            while (($hwnd -eq $null -or $hwnd -eq 0) -and $retries -lt 10) {{
+                Start-Sleep -Milliseconds 200
+                $hwnd = (Get-Process -Id $explorer.Id -ErrorAction SilentlyContinue).MainWindowHandle
+                $retries++
+            }}
+            if ($hwnd -ne $null -and $hwnd -ne 0) {{
+                $type::SetForegroundWindow($hwnd)
+            }}
+            '''
+            subprocess.Popen(['powershell', '-NoProfile', '-Command', script])
         elif sys.platform.startswith('darwin'):
+            # Open and bring Finder to front
             subprocess.Popen(['open', base_path])
+            subprocess.Popen(['osascript', '-e', 'tell application "Finder" to activate'])
         else:
+            # Linux: open and try to focus (may depend on desktop environment)
             subprocess.Popen(['xdg-open', base_path])
+            # No reliable cross-DE way to bring to front
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

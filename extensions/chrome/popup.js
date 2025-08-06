@@ -613,6 +613,7 @@ class MediaToolClient {
     item.className = `task-item ${task.status}`;
     item.dataset.taskId = task.id;
     item.innerHTML = `
+      <button class="btn small" data-action="remove-task" data-task-id="${task.id}">X</button>
       <div class="task-info">
         <span class="task-type">${task.type.toUpperCase()}</span>
         <span class="task-status">${task.status}</span>
