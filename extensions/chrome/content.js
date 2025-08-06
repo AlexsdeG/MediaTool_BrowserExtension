@@ -134,14 +134,67 @@ class MediaDetector {
   
   extractYouTubeData() {
     try {
-      const videoId = new URLSearchParams(window.location.search).get('v');
-      if (!videoId) return null;
+      // Try multiple methods to get video ID
+      let videoId = new URLSearchParams(window.location.search).get('v');
       
-      const titleElement = document.querySelector('h1.title, #title h1, .ytd-video-primary-info-renderer h1');
-      const videoTitle = titleElement?.textContent?.trim() || 'YouTube Video';
+      // If no 'v' parameter, try extracting from URL path (for youtu.be links)
+      if (!videoId && window.location.hostname.includes('youtu.be')) {
+        videoId = window.location.pathname.substring(1);
+      }
       
-      const channelElement = document.querySelector('#owner-name a, .ytd-channel-name a');
-      const channelName = channelElement?.textContent?.trim() || 'Unknown Channel';
+      // If still no videoId, try extracting from current URL
+      if (!videoId) {
+        const match = window.location.href.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        videoId = match ? match[1] : null;
+      }
+      
+      if (!videoId) {
+        console.log('No YouTube video ID found');
+        return null;
+      }
+      
+      // Try multiple selectors for title with fallbacks
+      const titleSelectors = [
+        'h1.ytd-video-primary-info-renderer',
+        '#title h1',
+        'h1.title',
+        '.ytd-video-primary-info-renderer h1',
+        'h1[class*="title"]',
+        'meta[property="og:title"]'
+      ];
+      
+      let videoTitle = 'YouTube Video';
+      for (const selector of titleSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+          if (selector.includes('meta')) {
+            videoTitle = element.getAttribute('content') || videoTitle;
+          } else {
+            videoTitle = element.textContent?.trim() || videoTitle;
+          }
+          if (videoTitle && videoTitle !== 'YouTube Video') break;
+        }
+      }
+      
+      // Try multiple selectors for channel name
+      const channelSelectors = [
+        '#owner-name a',
+        '.ytd-channel-name a',
+        '#channel-name a',
+        'a[href*="/channel/"]',
+        'a[href*="/@"]'
+      ];
+      
+      let channelName = 'Unknown Channel';
+      for (const selector of channelSelectors) {
+        const element = document.querySelector(selector);
+        if (element && element.textContent?.trim()) {
+          channelName = element.textContent.trim();
+          break;
+        }
+      }
+      
+      console.log('YouTube data extracted:', { videoId, title: videoTitle, channel: channelName });
       
       return {
         videoId,
@@ -151,6 +204,7 @@ class MediaDetector {
         thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
         type: 'youtube'
       };
+      
     } catch (error) {
       console.error('YouTube data extraction failed:', error);
       return null;

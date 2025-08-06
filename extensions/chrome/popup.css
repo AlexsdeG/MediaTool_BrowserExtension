@@ -168,7 +168,36 @@ input[type="url"]:focus, select:focus {
   font-size: 14px;
   font-weight: 600;
   color: #202124;
+}
+
+.media-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 12px;
+}
+
+.media-channel {
+  font-size: 11px;
+  color: #5f6368;
+  font-style: italic;
+}
+
+.media-duration {
+  font-size: 11px;
+  color: #5f6368;
+  background: #f1f3f4;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-top: 2px;
+  display: inline-block;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 20px;
+  color: #5f6368;
+  font-size: 13px;
 }
 
 .media-list {

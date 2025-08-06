@@ -5,7 +5,8 @@
   "description": "Download and convert media with local service",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1:8765/*"
