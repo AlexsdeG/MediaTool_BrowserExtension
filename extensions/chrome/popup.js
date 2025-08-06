@@ -8,10 +8,15 @@ class MediaToolClient {
   }
 
   async init() {
-    // await this.checkServiceStatus();
     this.setupWebSocket();
     this.setupEventListeners();
-    this.loadTasks();
+    
+    // Load tasks silently on init, only show errors if tasks tab is active
+    try {
+      await this.loadTasks();
+    } catch (error) {
+      console.log('Initial task load failed, will retry when tasks tab is opened');
+    }
   }
 
   async checkServiceStatus() {
@@ -70,6 +75,7 @@ class MediaToolClient {
       // Auto-detect media when switching to download tab
       this.detectPageMedia();
     } else if (tabName === 'tasks') {
+      // Reload tasks when switching to tasks tab
       this.loadTasks();
     }
   }
@@ -119,6 +125,14 @@ class MediaToolClient {
     this.currentFileType = type;
     document.getElementById('video-btn').classList.toggle('active', type === 'video');
     document.getElementById('audio-btn').classList.toggle('active', type === 'audio');
+    
+    // Clear current selection when switching file types
+    this.selectedFile = null;
+    document.querySelectorAll('.tree-file.selected').forEach(el => {
+      el.classList.remove('selected');
+    });
+    document.getElementById('convert-btn').disabled = true;
+    
     this.loadFiles();
     this.updateFormatSelection();
   }
@@ -145,12 +159,43 @@ class MediaToolClient {
   renderFileTree(files) {
     const treeContainer = document.getElementById('file-tree');
     treeContainer.innerHTML = '';
-    if (files.downloads) {
-      treeContainer.appendChild(this.createTreeElement(files.downloads, 'Downloads'));
+    
+    if (files.downloads && files.downloads.length > 0) {
+      const downloadsFolder = this.createTreeElement(files.downloads, 'Downloads');
+      this.updateFolderCount(downloadsFolder, files.downloads);
+      treeContainer.appendChild(downloadsFolder);
     }
-    if (files.converted) {
-      treeContainer.appendChild(this.createTreeElement(files.converted, 'Converted'));
+    
+    if (files.converted && files.converted.length > 0) {
+      const convertedFolder = this.createTreeElement(files.converted, 'Converted');
+      this.updateFolderCount(convertedFolder, files.converted);
+      treeContainer.appendChild(convertedFolder);
     }
+    
+    if ((!files.downloads || files.downloads.length === 0) && 
+        (!files.converted || files.converted.length === 0)) {
+      treeContainer.innerHTML = '<div class="empty-state"><p>No files found</p></div>';
+    }
+  }
+
+  updateFolderCount(folderElement, items) {
+    const countElement = folderElement.querySelector('.folder-count');
+    if (countElement) {
+      const fileCount = this.countFiles(items);
+      countElement.textContent = `(${fileCount} files)`;
+    }
+  }
+
+  countFiles(items) {
+    let count = 0;
+    items.forEach(item => {
+      if (item.type === 'file') {
+        count++;
+      } else if (item.type === 'folder' && item.children) {
+        count += this.countFiles(item.children);
+      }
+    });
+    return count;
   }
 
   createTreeElement(nodes, name) {
@@ -188,49 +233,115 @@ class MediaToolClient {
   createFileElement(file, depth = 0) {
     const element = document.createElement('div');
     element.className = 'tree-item tree-file';
-    element.style.marginLeft = `${depth * 16}px`;
-    element.textContent = file.name;
+    element.style.marginLeft = `${16}px`;
+    element.dataset.filePath = file.path; // Add data attribute for easier selection management
+    
+    // Create file icon and name
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    const isVideo = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv'].includes(fileExt);
+    const isAudio = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(fileExt);
+    
+    const icon = isVideo ? '🎬' : isAudio ? '🎵' : '📄';
+    
+    element.innerHTML = `
+      <div class="file-content">
+        <span class="file-icon">${icon}</span>
+        <span class="file-name">${file.name}</span>
+        <span class="file-size">${this.formatFileSize(file.size)}</span>
+      </div>
+    `;
+    
     element.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (this.selectedFile) {
-        document.querySelector(`[data-path="${this.selectedFile.path}"]`)?.classList.remove('selected');
-      }
-      this.selectedFile = file;
+      this.selectFile(element, file);
+    });
+    
+    return element;
+  }
+
+  selectFile(element, file) {
+    const isCurrentlySelected = element.classList.contains('selected');
+    
+    // First, deselect all files
+    document.querySelectorAll('.tree-file.selected').forEach(el => {
+      el.classList.remove('selected');
+    });
+    
+    // If the clicked file was not selected, select it
+    if (!isCurrentlySelected) {
       element.classList.add('selected');
-      element.dataset.path = file.path;
+      this.selectedFile = file;
       document.getElementById('convert-btn').disabled = false;
       this.updateFormatSelection();
-    });
-    return element;
+    } else {
+      // If it was selected, deselect it (clear selection)
+      this.selectedFile = null;
+      document.getElementById('convert-btn').disabled = true;
+      document.getElementById('format-select').innerHTML = '<option value="">Select a file first</option>';
+    }
+    
+    console.log('Selected file:', this.selectedFile?.name || 'None');
   }
 
   createFolderElement(name, depth = 0) {
     const folder = document.createElement('div');
     folder.className = 'tree-item tree-folder collapsed';
-    folder.style.marginLeft = `${depth * 16}px`;
-    folder.innerHTML = `<span class="folder-toggle">▶</span> <span class="folder-name">${name}</span><div class="tree-children" style="display:none"></div>`;
-    folder.querySelector('.folder-toggle').addEventListener('click', (e) => {
+    folder.style.marginLeft = `${16}px`;
+    
+    folder.innerHTML = `
+      <div class="folder-content">
+        <span class="folder-toggle">📁</span>
+        <span class="folder-name">${name}</span>
+        <span class="folder-count"></span>
+      </div>
+      <div class="tree-children" style="display:none"></div>
+    `;
+    
+    const toggleElement = folder.querySelector('.folder-toggle');
+    const folderContent = folder.querySelector('.folder-content');
+    
+    const toggleFolder = (e) => {
       e.stopPropagation();
       const children = folder.querySelector('.tree-children');
       const isCollapsed = children.style.display === 'none';
+      
       children.style.display = isCollapsed ? 'block' : 'none';
       folder.classList.toggle('collapsed', !isCollapsed);
-      folder.querySelector('.folder-toggle').textContent = isCollapsed ? '▼' : '▶';
-    });
-    folder.querySelector('.folder-name').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const children = folder.querySelector('.tree-children');
-      const isCollapsed = children.style.display === 'none';
-      children.style.display = isCollapsed ? 'block' : 'none';
-      folder.classList.toggle('collapsed', !isCollapsed);
-      folder.querySelector('.folder-toggle').textContent = isCollapsed ? '▼' : '▶';
-    });
+      
+      // Update folder icon
+      toggleElement.textContent = isCollapsed ? '📂' : '📁';
+      
+      // Add animation
+      if (isCollapsed) {
+        children.style.animation = 'expandFolder 0.2s ease-out';
+      }
+    };
+    
+    toggleElement.addEventListener('click', toggleFolder);
+    folderContent.addEventListener('click', toggleFolder);
+    
     return folder;
+  }
+
+  formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const size = (bytes / Math.pow(1024, i)).toFixed(1);
+    
+    return `${size} ${sizes[i]}`;
   }
 
   updateFormatSelection() {
     const formatSelect = document.getElementById('format-select');
-    const currentFormat = this.selectedFile?.name.split('.').pop();
+    
+    if (!this.selectedFile) {
+      formatSelect.innerHTML = '<option value="">Select a file first</option>';
+      return;
+    }
+    
+    const currentFormat = this.selectedFile.name.split('.').pop().toLowerCase();
     const isVideo = ['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(currentFormat);
     const isAudio = ['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(currentFormat);
 
@@ -241,6 +352,11 @@ class MediaToolClient {
     } else if (this.currentFileType === 'audio' && (isAudio || isVideo)) {
       options = ['mp3', 'wav', 'flac'].filter(f => f !== currentFormat).map(f => `<option value="${f}">${f.toUpperCase()}</option>`).join('');
     }
+    
+    if (options === '') {
+      options = '<option value="">No conversion options available</option>';
+    }
+    
     formatSelect.innerHTML = options;
   }
 
@@ -583,17 +699,21 @@ class MediaToolClient {
       const tasks = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({ action: 'getTasks' }, response => {
           if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError.message);
+            reject(new Error(chrome.runtime.lastError.message));
           } else if (response && !response.error) {
             resolve(response);
           } else {
-            reject(response ? response.error : 'Unknown error');
+            reject(new Error(response ? response.error : 'Failed to load tasks'));
           }
         });
       });
       this.displayTasks(tasks);
     } catch (error) {
-      this.showNotification('Failed to load tasks', 'error');
+      console.error('Load tasks error:', error);
+      // Don't show notification on initial load failure, just log it
+      if (document.querySelector('#tasks-panel').classList.contains('active')) {
+        this.showNotification('Failed to load tasks', 'error');
+      }
     }
   }
 
@@ -612,12 +732,57 @@ class MediaToolClient {
     const item = document.createElement('div');
     item.className = `task-item ${task.status}`;
     item.dataset.taskId = task.id;
+    
+    // Extract better task information
+    let taskTitle = 'Unknown Task';
+    let taskSource = '';
+    
+    if (task.params) {
+      if (task.params.url) {
+        try {
+          const url = new URL(task.params.url);
+          if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
+            taskTitle = 'YouTube Video';
+            taskSource = 'YouTube';
+          } else if (url.hostname.includes('vimeo.com')) {
+            taskTitle = 'Vimeo Video';
+            taskSource = 'Vimeo';
+          } else if (url.hostname.includes('twitch.tv')) {
+            taskTitle = 'Twitch Stream';
+            taskSource = 'Twitch';
+          } else {
+            // Try to get filename from URL
+            const pathname = url.pathname;
+            const filename = pathname.split('/').pop();
+            if (filename && filename.includes('.')) {
+              taskTitle = filename;
+              taskSource = url.hostname;
+            } else {
+              taskTitle = 'Media File';
+              taskSource = url.hostname;
+            }
+          }
+        } catch {
+          taskTitle = 'Media File';
+          taskSource = 'Unknown';
+        }
+      } else if (task.params.file_path) {
+        const filename = task.params.file_path.split(/[/\\]/).pop() || 'File';
+        taskTitle = filename;
+        taskSource = 'Local File';
+      }
+    }
+    
     item.innerHTML = `
-      <button class="btn small" data-action="remove-task" data-task-id="${task.id}">X</button>
+      ${task.status === 'completed' || task.status === 'failed' ? 
+        `<button class="task-close-btn" data-task-id="${task.id}" title="Remove task">×</button>` : 
+        ''}
       <div class="task-info">
         <span class="task-type">${task.type.toUpperCase()}</span>
         <span class="task-status">${task.status}</span>
       </div>
+      <div class="task-title">${this.truncateText(taskTitle, 35)}</div>
+      ${taskSource ? `<div class="task-source">from ${taskSource}</div>` : ''}
       <div class="task-progress">
         <div class="progress-bar">
           <div class="progress-fill" style="width: ${task.progress}%"></div>
@@ -626,30 +791,79 @@ class MediaToolClient {
       </div>
       ${task.error ? `<div class="task-error">${task.error}</div>` : ''}
     `;
-return item;
+    
+    // Add close button event listener
+    const closeBtn = item.querySelector('.task-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeTask(task.id);
+      });
+    }
+    
+    return item;
+  }
+
+  removeTask(taskId) {
+    const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+    if (taskElement) {
+      taskElement.style.animation = 'slideOut 0.3s ease-out';
+      setTimeout(() => {
+        taskElement.remove();
+      }, 300);
+    }
   }
 
   updateTaskDisplay(task) {
     const taskElement = document.querySelector(`[data-task-id="${task.id}"]`);
     if (taskElement) {
+      // Update task class and status
       taskElement.className = `task-item ${task.status}`;
       taskElement.querySelector('.task-status').textContent = task.status;
-      taskElement.querySelector('.progress-fill').style.width = `${task.progress}%`;
-      taskElement.querySelector('.progress-text').textContent = `${task.progress}%`;
+      
+      // Update progress
+      const progressFill = taskElement.querySelector('.progress-fill');
+      const progressText = taskElement.querySelector('.progress-text');
+      if (progressFill && progressText) {
+        progressFill.style.width = `${task.progress}%`;
+        progressText.textContent = `${task.progress}%`;
+      }
+      
+      // Handle errors
+      let errorEl = taskElement.querySelector('.task-error');
       if (task.error) {
-        let errorEl = taskElement.querySelector('.task-error');
         if (!errorEl) {
           errorEl = document.createElement('div');
           errorEl.className = 'task-error';
           taskElement.appendChild(errorEl);
         }
         errorEl.textContent = task.error;
+        
+        // Show notification for new errors
+        this.showNotification(`Task failed: ${task.error}`, 'error');
+      } else if (errorEl) {
+        errorEl.remove();
       }
+      
+      // Add close button if task is completed or failed
+      if ((task.status === 'completed' || task.status === 'failed') && !taskElement.querySelector('.task-close-btn')) {
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'task-close-btn';
+        closeBtn.dataset.taskId = task.id;
+        closeBtn.title = 'Remove task';
+        closeBtn.textContent = '×';
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.removeTask(task.id);
+        });
+        taskElement.appendChild(closeBtn);
+      }
+      
     } else {
-        // if task is not in the list, add it
-        const taskList = document.getElementById('task-list');
-        const item = this.createTaskElement(task);
-        taskList.prepend(item);
+      // If task is not in the list, add it
+      const taskList = document.getElementById('task-list');
+      const item = this.createTaskElement(task);
+      taskList.prepend(item);
     }
   }
 

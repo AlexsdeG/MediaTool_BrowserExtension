@@ -296,17 +296,42 @@ input[type="url"]:focus, select:focus {
 }
 
 .tree-item {
-  display: block;
-  cursor: pointer;
-  user-select: none;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  transition: all 0.2s ease;
 }
 
-/* .tree-folder .tree-children {
-  margin-left: 16px;
-} */
+.folder-content {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.folder-content:hover {
+  background: #f1f3f4;
+}
 
 .tree-file.selected {
   background: #e0e0e0;
+}
+
+.tree-file {
+  border-radius: 4px;
+  margin-bottom: 2px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.tree-file:hover .file-content {
+  background: #f8f9fa;
+}
+
+.tree-file.selected .file-content {
+  background: #e8f0fe !important;
+  border: 1px solid #1a73e8;
+  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.2);
 }
 
 .tree-item:hover {
@@ -324,17 +349,69 @@ input[type="url"]:focus, select:focus {
 }
 
 .folder-toggle {
-  font-weight: bold;
-  cursor: pointer;
+  margin-right: 8px;
+  font-size: 14px;
+  transition: transform 0.2s ease;
 }
 
 .folder-name {
-  cursor: pointer;
+  font-weight: 500;
+  color: #202124;
+  flex: 1;
 }
 
-/* .tree-children {
-  margin-left: 20px;
-} */
+.folder-count {
+  font-size: 11px;
+  color: #5f6368;
+  margin-left: 8px;
+}
+
+.file-content {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.file-content:hover {
+  background: #f8f9fa;
+}
+
+.file-icon {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.file-name {
+  flex: 1;
+  font-size: 13px;
+  color: #202124;
+  word-break: break-word;
+}
+
+.file-size {
+  font-size: 11px;
+  color: #5f6368;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.task-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #202124;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.task-source {
+  font-size: 11px;
+  color: #5f6368;
+  margin-bottom: 8px;
+  font-style: italic;
+}
 
 .tree-folder.collapsed .tree-children {
   display: none;
@@ -384,6 +461,33 @@ input[type="url"]:focus, select:focus {
   min-width: 90px;
 }
 
+/* Animations */
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 100px;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+    max-height: 0;
+    margin-bottom: 0;
+    padding: 0;
+  }
+}
+
+@keyframes expandFolder {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Tasks Panel */
 #task-list {
   margin-top: 16px;
@@ -396,7 +500,7 @@ input[type="url"]:focus, select:focus {
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
-  padding: 16px;
+  padding: 16px 40px 16px 16px; /* Add right padding for close button */
   margin-bottom: 12px;
   transition: all 0.2s ease;
 }
@@ -454,6 +558,45 @@ input[type="url"]:focus, select:focus {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.task-filename {
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.task-close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #ea4335;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.task-close-btn:hover {
+  background: #d33b2c;
+  transform: scale(1.1);
 }
 
 .progress-bar {
@@ -550,7 +693,7 @@ input[type="url"]:focus, select:focus {
 /* Empty states */
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: 30px 20px;
   color: #5f6368;
 }
 
@@ -561,5 +704,5 @@ input[type="url"]:focus, select:focus {
 
 .empty-state p {
   font-size: 14px;
-  line-height: 1.4;
+  margin: 0;
 }
